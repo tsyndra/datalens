@@ -2,6 +2,8 @@ const state = {
   schema: null,
   reports: [],
   dashboard: null,
+  dashboardRequestId: 0,
+  dashboardTimer: null,
   tableSorts: {},
 };
 
@@ -91,7 +93,8 @@ function shiftDate(isoDate, days) {
 }
 
 function setQuickRange(range) {
-  const latest = state.dashboard?.date_to || $("dashboardDateTo").value;
+  const latest = state.dashboard?.date_max || state.dashboard?.date_to || $("dashboardDateTo").value;
+  const earliest = state.dashboard?.date_min;
   if (!latest) return;
   let from = latest;
   let to = latest;
@@ -103,12 +106,18 @@ function setQuickRange(range) {
   } else if (range === "30d") {
     from = shiftDate(latest, -29);
   }
+  if (earliest && from < earliest) from = earliest;
   $("dashboardDateFrom").value = from;
   $("dashboardDateTo").value = to;
   $("reportDateFrom").value = from;
   $("reportDateTo").value = to;
   document.querySelectorAll(".quick").forEach((button) => button.classList.toggle("active", button.dataset.range === range));
-  loadDashboard();
+  scheduleDashboardLoad();
+}
+
+function scheduleDashboardLoad() {
+  window.clearTimeout(state.dashboardTimer);
+  state.dashboardTimer = window.setTimeout(loadDashboard, 150);
 }
 
 function renderTable(containerId, columns, rows, maxRows = null) {
@@ -207,14 +216,25 @@ function renderMiniBars(container, rows, labelKey, valueKey) {
 }
 
 async function loadDashboard() {
+  const requestId = ++state.dashboardRequestId;
   $("kpiGrid").innerHTML = '<div class="empty">Загрузка...</div>';
+  $("widgetGrid").innerHTML = '<div class="empty">Загрузка...</div>';
   const query = new URLSearchParams();
   if ($("dashboardDateFrom")?.value) query.set("date_from", $("dashboardDateFrom").value);
   if ($("dashboardDateTo")?.value) query.set("date_to", $("dashboardDateTo").value);
-  const data = await api(`/api/dashboard${query.toString() ? `?${query}` : ""}`);
+  let data;
+  try {
+    data = await api(`/api/dashboard${query.toString() ? `?${query}` : ""}`);
+  } catch (error) {
+    if (requestId !== state.dashboardRequestId) return;
+    $("kpiGrid").innerHTML = `<div class="empty">${error.message}</div>`;
+    $("widgetGrid").innerHTML = "";
+    return;
+  }
+  if (requestId !== state.dashboardRequestId) return;
   state.dashboard = data;
-  if (data.date_from && !$("dashboardDateFrom").value) $("dashboardDateFrom").value = data.date_from;
-  if (data.date_to && !$("dashboardDateTo").value) $("dashboardDateTo").value = data.date_to;
+  if (data.date_from) $("dashboardDateFrom").value = data.date_from;
+  if (data.date_to) $("dashboardDateTo").value = data.date_to;
   if (data.date_from && !$("reportDateFrom").value) $("reportDateFrom").value = data.date_from;
   if (data.date_to && !$("reportDateTo").value) $("reportDateTo").value = data.date_to;
   $("dashboardPeriod").textContent = data.date_from && data.date_to ? `Период: ${data.date_from} — ${data.date_to}` : "Нет данных";

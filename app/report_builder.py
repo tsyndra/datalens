@@ -370,19 +370,27 @@ def run_dashboard(date_from_override: str | None = None, date_to_override: str |
                 cur,
                 """
                 SELECT
-                    max(business_date)::date AS date_to,
-                    max(business_date)::date AS date_from
-                FROM dl_olap_sales
+                    min(business_date)::date AS date_min,
+                    max(business_date)::date AS date_max
+                FROM dl_olap_orders
                 """,
             )
-            date_from = bounds.get("date_from")
-            date_to = bounds.get("date_to")
+            date_min = str(bounds.get("date_min")) if bounds.get("date_min") else None
+            date_max = str(bounds.get("date_max")) if bounds.get("date_max") else None
+            date_from = date_max
+            date_to = date_max
             if not date_to:
-                return {"date_from": None, "date_to": None, "kpis": [], "widgets": []}
+                return {"date_from": None, "date_to": None, "date_min": None, "date_max": None, "kpis": [], "widgets": []}
             if date_from_override:
                 date_from = date_from_override
             if date_to_override:
                 date_to = date_to_override
+            if date_min and date_from < date_min:
+                date_from = date_min
+            if date_max and date_to > date_max:
+                date_to = date_max
+            if date_from > date_to:
+                date_from = date_to
 
             params = [date_from, date_to]
             kpi = fetch_one(
@@ -396,17 +404,6 @@ def run_dashboard(date_from_override: str | None = None, date_to_override: str |
                     sum(refund_sum)::numeric(14,2) AS refund_sum
                 FROM dl_olap_sales
                 WHERE business_date BETWEEN %s AND %s
-                """,
-                params,
-            )
-            trend = fetch_all(
-                cur,
-                """
-                SELECT business_date, sum(net_revenue)::numeric(14,2) AS net_revenue, sum(orders_count)::integer AS orders_count
-                FROM dl_olap_sales
-                WHERE business_date BETWEEN %s AND %s
-                GROUP BY business_date
-                ORDER BY business_date
                 """,
                 params,
             )
@@ -482,12 +479,19 @@ def run_dashboard(date_from_override: str | None = None, date_to_override: str |
             customers = fetch_one(
                 cur,
                 """
+                WITH period_customers AS (
+                    SELECT
+                        customer_id,
+                        min(order_number_by_customer) AS first_order_number_in_period
+                    FROM dl_olap_customers
+                    WHERE business_date BETWEEN %s AND %s
+                    GROUP BY customer_id
+                )
                 SELECT
-                    count(distinct customer_id)::integer AS customers,
-                    count(distinct customer_id) FILTER (WHERE is_first_order)::integer AS new_customers,
-                    count(distinct customer_id) FILTER (WHERE is_repeat_order)::integer AS repeat_customers
-                FROM dl_olap_customers
-                WHERE business_date BETWEEN %s AND %s
+                    count(*)::integer AS customers,
+                    count(*) FILTER (WHERE first_order_number_in_period = 1)::integer AS new_customers,
+                    count(*) FILTER (WHERE first_order_number_in_period > 1)::integer AS repeat_customers
+                FROM period_customers
                 """,
                 params,
             )
@@ -495,6 +499,8 @@ def run_dashboard(date_from_override: str | None = None, date_to_override: str |
     return {
         "date_from": date_from,
         "date_to": date_to,
+        "date_min": date_min,
+        "date_max": date_max,
         "kpis": [
             {"id": "net_revenue", "label": "Выручка", "value": kpi.get("net_revenue"), "format": "money"},
             {"id": "orders_count", "label": "Заказы", "value": kpi.get("orders_count"), "format": "integer"},
