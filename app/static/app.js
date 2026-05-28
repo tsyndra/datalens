@@ -72,7 +72,10 @@ function renderSubject() {
   $("subjectDescription").textContent = subject.description || "";
 
   const defaultDims = subject.dimensions.business_date ? ["business_date"] : Object.keys(subject.dimensions).slice(0, 1);
-  const defaultMetrics = Object.keys(subject.metrics).slice(0, 2);
+  const metricKeys = Object.keys(subject.metrics);
+  const defaultMetrics = metricKeys.includes("net_revenue")
+    ? ["net_revenue", ...(metricKeys.includes("orders") ? ["orders"] : [])]
+    : metricKeys.slice(0, 2);
   renderChecks("dimensions", subject.dimensions, defaultDims);
   renderChecks("metrics", subject.metrics, defaultMetrics);
   renderOrderOptions();
@@ -189,10 +192,68 @@ function renderTable(containerId, columns, rows) {
   wrap.append(table);
 }
 
+function formatValue(value) {
+  if (value === null || value === undefined || value === "") return "";
+  const num = Number(value);
+  if (Number.isFinite(num)) {
+    return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(num);
+  }
+  return String(value);
+}
+
+function renderChart(columns, rows) {
+  const wrap = $("chartWrap");
+  wrap.innerHTML = "";
+  const dims = checkedValues("dimensions");
+  const metrics = checkedValues("metrics");
+  const labelCol = dims[0];
+  const valueCol = metrics[0];
+  if (!labelCol || !valueCol || !rows.length || !columns.includes(labelCol) || !columns.includes(valueCol)) {
+    const empty = document.createElement("div");
+    empty.className = "chart-empty";
+    empty.textContent = "Выберите группировку и числовую метрику для preview";
+    wrap.append(empty);
+    return;
+  }
+  const items = rows
+    .map((row) => ({ label: row[labelCol], value: Number(row[valueCol]) }))
+    .filter((x) => Number.isFinite(x.value))
+    .slice(0, window.innerWidth < 520 ? 4 : 8);
+  const max = Math.max(...items.map((x) => Math.abs(x.value)), 0);
+  if (!max) {
+    const empty = document.createElement("div");
+    empty.className = "chart-empty";
+    empty.textContent = "Нет числовых значений для preview";
+    wrap.append(empty);
+    return;
+  }
+  items.forEach((item) => {
+    const card = document.createElement("div");
+    card.className = "bar-card";
+    const label = document.createElement("div");
+    label.className = "bar-label";
+    label.title = item.label ?? "";
+    label.textContent = item.label ?? "";
+    const value = document.createElement("div");
+    value.className = "bar-value";
+    value.textContent = formatValue(item.value);
+    const track = document.createElement("div");
+    track.className = "bar-track";
+    const fill = document.createElement("div");
+    fill.className = "bar-fill";
+    fill.style.width = `${Math.max(3, Math.round((Math.abs(item.value) / max) * 100))}%`;
+    track.append(fill);
+    card.append(label, value, track);
+    wrap.append(card);
+  });
+}
+
 async function runReport() {
   setStatus("status", "Выполняется...");
   try {
     const data = await api("/api/report", reportPayload());
+    $("resultMeta").textContent = `${$("subject").selectedOptions[0].textContent}: ${checkedValues("dimensions").join(", ") || "без группировки"}`;
+    renderChart(data.columns, data.rows);
     renderTable("tableWrap", data.columns, data.rows);
     setStatus("status", `${data.rows.length} строк`);
   } catch (error) {

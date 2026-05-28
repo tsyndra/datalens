@@ -20,6 +20,7 @@ body {
   color: var(--text);
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px;
+  line-height: 1.35;
 }
 
 .topbar {
@@ -27,7 +28,7 @@ body {
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
-  padding: 18px 24px 14px;
+  padding: 16px 24px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
@@ -93,7 +94,7 @@ button:hover {
 }
 
 main {
-  padding: 18px;
+  padding: 16px 18px;
 }
 
 .panel {
@@ -117,7 +118,7 @@ main {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   align-self: start;
 }
 
@@ -128,7 +129,7 @@ main {
 
 .result-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   padding: 14px 16px;
@@ -181,7 +182,7 @@ input {
   display: grid;
   grid-template-columns: 1fr;
   gap: 6px;
-  max-height: 190px;
+  max-height: 170px;
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -237,21 +238,71 @@ input {
 
 .table-wrap {
   overflow: auto;
-  max-height: calc(100vh - 154px);
+  max-height: 560px;
+  border-top: 1px solid var(--line);
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 720px;
+  min-width: 620px;
 }
 
 th,
 td {
-  padding: 9px 10px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--line);
   text-align: left;
   white-space: nowrap;
+}
+
+.chart-wrap {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fbfcfd;
+}
+
+.chart-empty {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+.bar-card {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.bar-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf1f4;
+}
+
+.bar-fill {
+  height: 100%;
+  min-width: 2px;
+  background: var(--accent);
 }
 
 th {
@@ -283,6 +334,58 @@ td.num {
   }
 
   .table-wrap {
-    max-height: 70vh;
+    max-height: 560px;
+  }
+
+  .chart-wrap {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  main {
+    padding: 12px;
+  }
+
+  .topbar {
+    padding: 14px 18px;
+  }
+
+  .panel {
+    gap: 12px;
+  }
+
+  .controls,
+  .results {
+    border-radius: 7px;
+  }
+
+  .inline-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-controls label:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+
+  .filter-row {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-row .remove {
+    width: 36px;
+  }
+
+  .chart-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  table {
+    min-width: 560px;
+  }
+
+  th,
+  td {
+    padding: 8px;
   }
 }

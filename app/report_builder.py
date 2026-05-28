@@ -354,7 +354,7 @@ def build_report(payload: dict[str, Any], csv_mode: bool = False) -> tuple[str, 
     cfg = SUBJECTS[subject_key]
     dimensions = validate_list(payload.get("dimensions"), cfg["dimensions"], ["business_date"] if "business_date" in cfg["dimensions"] else [])
     metrics = validate_list(payload.get("metrics"), cfg["metrics"], [next(iter(cfg["metrics"]))])
-    limit = int(payload.get("limit") or 500)
+    limit = int(payload.get("limit") or 50)
     limit = max(1, min(limit, 10000 if csv_mode else 1000))
 
     select_parts = [dim for dim in dimensions]
@@ -534,6 +534,10 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/schema":
             self.send_json({"subjects": subject_schema()})
+            return
+        if path == "/favicon.ico":
+            self.send_response(204)
+            self.end_headers()
             return
         if path == "/" or path == "/index.html":
             self.serve_static("index.html")

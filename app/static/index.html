@@ -59,7 +59,7 @@
             </label>
             <label>
               Лимит
-              <input id="limit" type="number" min="1" max="1000" value="500">
+              <input id="limit" type="number" min="1" max="1000" value="50">
             </label>
           </div>
 
@@ -71,9 +71,13 @@
 
         <section class="results">
           <div class="result-header">
-            <h2>Результат</h2>
+            <div>
+              <h2>Результат</h2>
+              <p id="resultMeta" class="hint"></p>
+            </div>
             <span id="status" class="status">Готово</span>
           </div>
+          <div id="chartWrap" class="chart-wrap"></div>
           <div id="tableWrap" class="table-wrap"></div>
         </section>
       </section>
