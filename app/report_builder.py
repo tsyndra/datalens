@@ -375,11 +375,22 @@ def run_dashboard(date_from_override: str | None = None, date_to_override: str |
                 SELECT
                     min(business_date)::date AS date_min,
                     max(business_date)::date AS date_max
-                FROM dl_olap_orders
+                FROM mart_daily_sales
+                """,
+            )
+            customer_bounds = fetch_one(
+                cur,
+                """
+                SELECT
+                    min(business_date)::date AS date_min,
+                    max(business_date)::date AS date_max
+                FROM dl_olap_customers
                 """,
             )
             date_min = str(bounds.get("date_min")) if bounds.get("date_min") else None
             date_max = str(bounds.get("date_max")) if bounds.get("date_max") else None
+            customer_date_min = str(customer_bounds.get("date_min")) if customer_bounds.get("date_min") else None
+            customer_date_max = str(customer_bounds.get("date_max")) if customer_bounds.get("date_max") else None
             date_from = date_max
             date_to = date_max
             if not date_to:
@@ -405,7 +416,7 @@ def run_dashboard(date_from_override: str | None = None, date_to_override: str |
                     (sum(net_revenue) / nullif(sum(orders_count), 0))::numeric(14,2) AS avg_check,
                     (sum(discount_sum) / nullif(sum(gross_revenue), 0))::numeric(14,6) AS discount_share,
                     sum(refund_sum)::numeric(14,2) AS refund_sum
-                FROM dl_olap_sales
+                FROM mart_daily_sales
                 WHERE business_date BETWEEN %s AND %s
                 """,
                 params,
@@ -414,7 +425,7 @@ def run_dashboard(date_from_override: str | None = None, date_to_override: str |
                 cur,
                 """
                 SELECT organization_name, sum(net_revenue)::numeric(14,2) AS net_revenue, sum(orders_count)::integer AS orders_count
-                FROM dl_olap_sales
+                FROM mart_branch_kpi
                 WHERE business_date BETWEEN %s AND %s
                 GROUP BY organization_name
                 ORDER BY net_revenue DESC NULLS LAST
@@ -426,8 +437,8 @@ def run_dashboard(date_from_override: str | None = None, date_to_override: str |
                 """
                 SELECT COALESCE(NULLIF(category_name, ''), 'Без категории') AS category_name,
                        sum(net_revenue)::numeric(14,2) AS net_revenue,
-                       sum(quantity)::numeric(14,3) AS quantity
-                FROM dl_olap_products
+                       sum(items_qty)::numeric(14,3) AS quantity
+                FROM mart_product_sales
                 WHERE business_date BETWEEN %s AND %s
                 GROUP BY COALESCE(NULLIF(category_name, ''), 'Без категории')
                 ORDER BY net_revenue DESC NULLS LAST
@@ -440,8 +451,8 @@ def run_dashboard(date_from_override: str | None = None, date_to_override: str |
                 """
                 SELECT product_name, COALESCE(NULLIF(category_name, ''), 'Без категории') AS category_name,
                        sum(net_revenue)::numeric(14,2) AS net_revenue,
-                       sum(quantity)::numeric(14,3) AS quantity
-                FROM dl_olap_products
+                       sum(items_qty)::numeric(14,3) AS quantity
+                FROM mart_product_sales
                 WHERE business_date BETWEEN %s AND %s
                 GROUP BY product_name, COALESCE(NULLIF(category_name, ''), 'Без категории')
                 ORDER BY net_revenue DESC NULLS LAST
@@ -454,8 +465,8 @@ def run_dashboard(date_from_override: str | None = None, date_to_override: str |
                 """
                 SELECT COALESCE(NULLIF(payment_type, ''), 'Не указан') AS payment_type,
                        sum(payment_sum)::numeric(14,2) AS payment_sum,
-                       count(distinct order_id)::integer AS orders_count
-                FROM dl_olap_payments
+                       sum(orders_count)::integer AS orders_count
+                FROM mart_payments_daily
                 WHERE business_date BETWEEN %s AND %s
                 GROUP BY COALESCE(NULLIF(payment_type, ''), 'Не указан')
                 ORDER BY payment_sum DESC NULLS LAST
@@ -467,44 +478,49 @@ def run_dashboard(date_from_override: str | None = None, date_to_override: str |
                 cur,
                 """
                 SELECT organization_name,
-                       count(*)::integer AS deliveries,
-                       count(*) FILTER (WHERE is_late)::integer AS late_deliveries,
-                       (count(*) FILTER (WHERE is_late)::numeric / nullif(count(*), 0))::numeric(14,6) AS late_rate,
-                       avg(delivery_minutes)::numeric(14,2) AS avg_delivery_minutes
-                FROM dl_olap_delivery
+                       sum(delivery_orders)::integer AS deliveries,
+                       sum(late_orders)::integer AS late_deliveries,
+                       (sum(late_orders)::numeric / nullif(sum(delivery_orders), 0))::numeric(14,6) AS late_rate,
+                       avg(avg_delivery_minutes)::numeric(14,2) AS avg_delivery_minutes
+                FROM mart_delivery_sla
                 WHERE business_date BETWEEN %s AND %s
                 GROUP BY organization_name
+                HAVING sum(delivery_orders) > 0
                 ORDER BY late_rate DESC NULLS LAST
                 LIMIT 10
                 """,
                 params,
             )
-            customers = fetch_one(
-                cur,
-                """
-                WITH period_customers AS (
+            customers = {"customers": None, "new_customers": None, "repeat_customers": None}
+            if customer_date_min and customer_date_max and date_from >= customer_date_min and date_to <= customer_date_max:
+                customers = fetch_one(
+                    cur,
+                    """
+                    WITH period_customers AS (
+                        SELECT
+                            customer_id,
+                            min(order_number_by_customer) AS first_order_number_in_period,
+                            max(order_number_by_customer) AS last_order_number_in_period
+                        FROM dl_olap_customers
+                        WHERE business_date BETWEEN %s AND %s
+                        GROUP BY customer_id
+                    )
                     SELECT
-                        customer_id,
-                        min(order_number_by_customer) AS first_order_number_in_period,
-                        max(order_number_by_customer) AS last_order_number_in_period
-                    FROM dl_olap_customers
-                    WHERE business_date BETWEEN %s AND %s
-                    GROUP BY customer_id
+                        count(*)::integer AS customers,
+                        count(*) FILTER (WHERE first_order_number_in_period = 1)::integer AS new_customers,
+                        count(*) FILTER (WHERE last_order_number_in_period > 1)::integer AS repeat_customers
+                    FROM period_customers
+                    """,
+                    params,
                 )
-                SELECT
-                    count(*)::integer AS customers,
-                    count(*) FILTER (WHERE first_order_number_in_period = 1)::integer AS new_customers,
-                    count(*) FILTER (WHERE last_order_number_in_period > 1)::integer AS repeat_customers
-                FROM period_customers
-                """,
-                params,
-            )
 
     return {
         "date_from": date_from,
         "date_to": date_to,
         "date_min": date_min,
         "date_max": date_max,
+        "customer_date_min": customer_date_min,
+        "customer_date_max": customer_date_max,
         "kpis": [
             {"id": "net_revenue", "label": "Выручка", "value": kpi.get("net_revenue"), "format": "money"},
             {"id": "orders_count", "label": "Заказы", "value": kpi.get("orders_count"), "format": "integer"},
