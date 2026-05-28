@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: iiko_analytics_postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-iiko_analytics}
+      POSTGRES_USER: ${POSTGRES_USER:-analytics}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_rotate_me}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-54337}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-analytics} -d ${POSTGRES_DB:-iiko_analytics}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  etl:
+    build: .
+    container_name: iiko_analytics_etl
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-analytics}:${POSTGRES_PASSWORD:-changeme_rotate_me}@db:5432/${POSTGRES_DB:-iiko_analytics}
+      DATALENS_REALTIME_INTERVAL_SECONDS: ${DATALENS_REALTIME_INTERVAL_SECONDS:-60}
+      DATALENS_OLAP_TODAY_INTERVAL_SECONDS: ${DATALENS_OLAP_TODAY_INTERVAL_SECONDS:-600}
+      DATALENS_BACKFILL_INTERVAL_SECONDS: ${DATALENS_BACKFILL_INTERVAL_SECONDS:-1800}
+      DATALENS_RECONCILE_INTERVAL_SECONDS: ${DATALENS_RECONCILE_INTERVAL_SECONDS:-3600}
+      DATALENS_RECONCILE_DAYS: ${DATALENS_RECONCILE_DAYS:-7}
+      DATALENS_BACKFILL_ENABLED: ${DATALENS_BACKFILL_ENABLED:-1}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+
+volumes:
+  pgdata:
