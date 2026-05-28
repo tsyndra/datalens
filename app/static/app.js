@@ -87,12 +87,15 @@ function formatValue(value, format = "") {
 }
 
 function shiftDate(isoDate, days) {
-  const date = new Date(`${isoDate}T00:00:00`);
-  date.setDate(date.getDate() + days);
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
 
 function setQuickRange(range) {
+  const button = document.querySelector(`.quick[data-range="${range}"]`);
+  if (button?.disabled) return;
   const latest = state.dashboard?.date_max || state.dashboard?.date_to || $("dashboardDateTo").value;
   const earliest = state.dashboard?.date_min;
   if (!latest) return;
@@ -118,6 +121,27 @@ function setQuickRange(range) {
 function scheduleDashboardLoad() {
   window.clearTimeout(state.dashboardTimer);
   state.dashboardTimer = window.setTimeout(loadDashboard, 150);
+}
+
+function daysBetweenInclusive(from, to) {
+  if (!from || !to) return 0;
+  const start = new Date(`${from}T00:00:00`);
+  const end = new Date(`${to}T00:00:00`);
+  return Math.floor((end - start) / 86400000) + 1;
+}
+
+function updateQuickButtons() {
+  const availableDays = daysBetweenInclusive(state.dashboard?.date_min, state.dashboard?.date_max);
+  const ranges = { today: 1, yesterday: 2, "7d": 7, "30d": 30 };
+  document.querySelectorAll(".quick").forEach((button) => {
+    const requiredDays = ranges[button.dataset.range] || 1;
+    const disabled = availableDays > 0 && availableDays < requiredDays;
+    button.disabled = disabled;
+    if (disabled) button.classList.remove("active");
+    button.title = disabled
+      ? `Недоступно: загружено ${availableDays} дн. данных`
+      : "";
+  });
 }
 
 function renderTable(containerId, columns, rows, maxRows = null) {
@@ -233,6 +257,7 @@ async function loadDashboard() {
   }
   if (requestId !== state.dashboardRequestId) return;
   state.dashboard = data;
+  updateQuickButtons();
   if (data.date_from) $("dashboardDateFrom").value = data.date_from;
   if (data.date_to) $("dashboardDateTo").value = data.date_to;
   if (data.date_from && !$("reportDateFrom").value) $("reportDateFrom").value = data.date_from;

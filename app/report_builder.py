@@ -339,7 +339,10 @@ def subject_schema() -> dict[str, Any]:
     result = {}
     for key, cfg in SUBJECTS.items():
         filter_labels = {
-            name: cfg["dimensions"].get(name, name.replace("_", " ").title())
+            name: cfg["dimensions"].get(name, {
+                "customer_id": "ID клиента",
+                "phone_hash": "Хэш телефона",
+            }.get(name, name.replace("_", " ").title()))
             for name in cfg["filters"]
         }
         result[key] = {
@@ -482,7 +485,8 @@ def run_dashboard(date_from_override: str | None = None, date_to_override: str |
                 WITH period_customers AS (
                     SELECT
                         customer_id,
-                        min(order_number_by_customer) AS first_order_number_in_period
+                        min(order_number_by_customer) AS first_order_number_in_period,
+                        max(order_number_by_customer) AS last_order_number_in_period
                     FROM dl_olap_customers
                     WHERE business_date BETWEEN %s AND %s
                     GROUP BY customer_id
@@ -490,7 +494,7 @@ def run_dashboard(date_from_override: str | None = None, date_to_override: str |
                 SELECT
                     count(*)::integer AS customers,
                     count(*) FILTER (WHERE first_order_number_in_period = 1)::integer AS new_customers,
-                    count(*) FILTER (WHERE first_order_number_in_period > 1)::integer AS repeat_customers
+                    count(*) FILTER (WHERE last_order_number_in_period > 1)::integer AS repeat_customers
                 FROM period_customers
                 """,
                 params,
