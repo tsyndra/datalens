@@ -4,9 +4,9 @@
 
 Статус источников и пробелов для этих отчетов фиксируется в [data_coverage.md](data_coverage.md). Перед сборкой дашбордов сначала нужно внедрить [storage_strategy.md](storage_strategy.md), потому что старая экспериментальная БД раздувалась raw JSON.
 
-Цель: спланировать отчеты, которые должны появиться поверх полной iiko-базы. Отчеты строятся на `mart_*` и `dl_preset_*`. `raw_*` и `fact_*` используются для проверки и drill-down, но не как основные датасеты DataLens.
+Цель: спланировать отчеты, которые должны появиться поверх полной iiko-базы. Основной DataLens-конструктор строится на `dl_olap_*` views; их список и правила использования описаны в [olap_datasets.md](olap_datasets.md). `dl_preset_*` и `dl_report_*` оставлены как совместимые/готовые витрины для отдельных сценариев. `raw_*` используется для проверки и восстановления, но не как основной слой DataLens.
 
-В DataLens нельзя собирать боевые датасеты JOIN-ом нескольких marts с одинаковыми колонками без алиасов: появятся поля с `(1)` и `(2)`. Для отчетов нужны плоские `dl_preset_*`/`dl_report_*` views с уникальными именами полей.
+В DataLens нельзя собирать один большой боевой датасет JOIN-ом продаж, товаров, оплат, скидок и доставок: появится fan-out и неправильные суммы. Вместо этого используем несколько `dl_olap_*` фактов и связываем их на дашборде общими фильтрами.
 
 ## Общие правила метрик
 
@@ -77,7 +77,7 @@
 | Заказы | indicator | `dl_preset_kpi_summary` | `SUM(orders_count)` |
 | Средний чек | indicator | `dl_preset_kpi_summary` | `SUM(net_revenue) / SUM(orders_count)` |
 | Скидка % | indicator | `dl_preset_kpi_summary` | `SUM(discount_sum) / SUM(gross_revenue)` |
-| Выручка по дням | line | `dl_preset_revenue_by_day` | X `business_date`, Y `SUM(net_revenue)` |
+| Выручка по дням | line | `dl_preset_revenue_by_day` | X `business_date`, filter `organization_name`, Y `SUM(net_revenue)` |
 | Филиалы по выручке | bar | `dl_preset_revenue_by_branch` | filter `business_date`, `organization_name`, `SUM(net_revenue)` |
 | Источники заказов | pie/bar | `dl_preset_revenue_by_source` | `order_source`, `SUM(net_revenue)` |
 | Health филиалов | table | `mart_branch_kpi` | `organization_name`, revenue, avg_check, discount_share, health_score |
