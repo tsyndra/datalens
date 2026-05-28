@@ -8,7 +8,7 @@ import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import psycopg
 from psycopg.rows import dict_row
@@ -48,217 +48,217 @@ def database_url() -> str:
 
 
 COMMON_TIME_DIMENSIONS = {
-    "business_date": "Business date",
-    "week_start": "Week",
-    "month_start": "Month",
-    "iso_weekday": "Weekday",
+    "business_date": "Дата",
+    "week_start": "Неделя",
+    "month_start": "Месяц",
+    "iso_weekday": "День недели",
 }
 
 
 SUBJECTS: dict[str, dict[str, Any]] = {
     "sales": {
-        "label": "Sales",
+        "label": "Продажи",
         "view": "dl_olap_sales",
-        "description": "Revenue, orders, avg check by date, branch, source.",
+        "description": "Выручка, заказы, средний чек по датам, филиалам и источникам.",
         "dimensions": {
             **COMMON_TIME_DIMENSIONS,
-            "organization_name": "Branch",
-            "order_source": "Order source",
+            "organization_name": "Филиал",
+            "order_source": "Источник заказа",
         },
         "metrics": {
-            "orders": {"label": "Orders", "expr": "sum(orders_count)::integer"},
-            "gross_revenue": {"label": "Gross revenue", "expr": "sum(gross_revenue)::numeric(14,2)"},
-            "net_revenue": {"label": "Net revenue", "expr": "sum(net_revenue)::numeric(14,2)"},
-            "avg_check": {"label": "Avg check", "expr": "(sum(net_revenue) / nullif(sum(orders_count), 0))::numeric(14,2)"},
-            "discount_sum": {"label": "Discount", "expr": "sum(discount_sum)::numeric(14,2)"},
-            "discount_share": {"label": "Discount share", "expr": "(sum(discount_sum) / nullif(sum(gross_revenue), 0))::numeric(14,6)"},
-            "refund_sum": {"label": "Refund", "expr": "sum(refund_sum)::numeric(14,2)"},
-            "items_qty": {"label": "Items qty", "expr": "sum(items_qty)::numeric(14,3)"},
+            "orders": {"label": "Заказы", "expr": "sum(orders_count)::integer"},
+            "gross_revenue": {"label": "Валовая выручка", "expr": "sum(gross_revenue)::numeric(14,2)"},
+            "net_revenue": {"label": "Выручка", "expr": "sum(net_revenue)::numeric(14,2)"},
+            "avg_check": {"label": "Средний чек", "expr": "(sum(net_revenue) / nullif(sum(orders_count), 0))::numeric(14,2)"},
+            "discount_sum": {"label": "Скидка", "expr": "sum(discount_sum)::numeric(14,2)"},
+            "discount_share": {"label": "Доля скидки", "expr": "(sum(discount_sum) / nullif(sum(gross_revenue), 0))::numeric(14,6)"},
+            "refund_sum": {"label": "Возвраты", "expr": "sum(refund_sum)::numeric(14,2)"},
+            "items_qty": {"label": "Количество товаров", "expr": "sum(items_qty)::numeric(14,3)"},
         },
         "filters": ["business_date", "organization_name", "order_source"],
     },
     "orders": {
-        "label": "Orders",
+        "label": "Заказы",
         "view": "dl_olap_orders",
-        "description": "Order-level details without product/payment fan-out.",
+        "description": "Заказы без размножения строк по товарам и оплатам.",
         "dimensions": {
             **COMMON_TIME_DIMENSIONS,
-            "open_hour": "Hour",
-            "organization_name": "Branch",
-            "order_source": "Order source",
-            "order_type": "Order type",
-            "status": "Status",
-            "is_delivery": "Delivery",
-            "is_cancelled": "Cancelled",
-            "payment_groups": "Payment groups",
-            "delivery_status": "Delivery status",
+            "open_hour": "Час",
+            "organization_name": "Филиал",
+            "order_source": "Источник заказа",
+            "order_type": "Тип заказа",
+            "status": "Статус",
+            "is_delivery": "Доставка",
+            "is_cancelled": "Отменен",
+            "payment_groups": "Группы оплат",
+            "delivery_status": "Статус доставки",
         },
         "metrics": {
-            "orders": {"label": "Orders", "expr": "count(distinct order_id)::integer"},
-            "customers": {"label": "Customers", "expr": "count(distinct customer_id)::integer"},
-            "gross_revenue": {"label": "Gross revenue", "expr": "sum(gross_revenue)::numeric(14,2)"},
-            "net_revenue": {"label": "Net revenue", "expr": "sum(net_revenue)::numeric(14,2)"},
-            "avg_check": {"label": "Avg check", "expr": "(sum(net_revenue) / nullif(count(distinct order_id), 0))::numeric(14,2)"},
-            "payment_sum": {"label": "Payment sum", "expr": "sum(payment_sum)::numeric(14,2)"},
-            "discount_sum": {"label": "Discount", "expr": "sum(discount_sum)::numeric(14,2)"},
-            "late_orders": {"label": "Late orders", "expr": "count(distinct order_id) filter (where is_late)::integer"},
+            "orders": {"label": "Заказы", "expr": "count(distinct order_id)::integer"},
+            "customers": {"label": "Клиенты", "expr": "count(distinct customer_id)::integer"},
+            "gross_revenue": {"label": "Валовая выручка", "expr": "sum(gross_revenue)::numeric(14,2)"},
+            "net_revenue": {"label": "Выручка", "expr": "sum(net_revenue)::numeric(14,2)"},
+            "avg_check": {"label": "Средний чек", "expr": "(sum(net_revenue) / nullif(count(distinct order_id), 0))::numeric(14,2)"},
+            "payment_sum": {"label": "Сумма оплат", "expr": "sum(payment_sum)::numeric(14,2)"},
+            "discount_sum": {"label": "Скидка", "expr": "sum(discount_sum)::numeric(14,2)"},
+            "late_orders": {"label": "Опоздавшие заказы", "expr": "count(distinct order_id) filter (where is_late)::integer"},
         },
         "filters": ["business_date", "organization_name", "order_source", "order_type", "status", "is_delivery", "is_cancelled", "payment_groups", "delivery_status", "customer_id", "phone_hash"],
     },
     "products": {
-        "label": "Products",
+        "label": "Товары",
         "view": "dl_olap_products",
-        "description": "Order item grain for products, categories, baskets, customer-product questions.",
+        "description": "Товары и категории в заказах.",
         "dimensions": {
             **COMMON_TIME_DIMENSIONS,
-            "open_hour": "Hour",
-            "organization_name": "Branch",
-            "order_source": "Order source",
-            "product_name": "Product",
-            "category_name": "Category",
-            "size_name": "Size",
-            "is_delivery": "Delivery",
-            "is_modifier": "Modifier",
+            "open_hour": "Час",
+            "organization_name": "Филиал",
+            "order_source": "Источник заказа",
+            "product_name": "Товар",
+            "category_name": "Категория",
+            "size_name": "Размер",
+            "is_delivery": "Доставка",
+            "is_modifier": "Модификатор",
         },
         "metrics": {
-            "item_lines": {"label": "Item lines", "expr": "count(*)::integer"},
-            "orders": {"label": "Orders", "expr": "count(distinct order_id)::integer"},
-            "customers": {"label": "Customers", "expr": "count(distinct customer_id)::integer"},
-            "quantity": {"label": "Quantity", "expr": "sum(quantity)::numeric(14,3)"},
-            "gross_revenue": {"label": "Gross revenue", "expr": "sum(gross_revenue)::numeric(14,2)"},
-            "net_revenue": {"label": "Net revenue", "expr": "sum(net_revenue)::numeric(14,2)"},
-            "avg_price": {"label": "Avg price", "expr": "(sum(net_revenue) / nullif(sum(quantity), 0))::numeric(14,2)"},
-            "discount_sum": {"label": "Discount", "expr": "sum(discount_sum)::numeric(14,2)"},
-            "cost_sum": {"label": "Cost", "expr": "sum(cost_sum)::numeric(14,2)"},
-            "profit_sum": {"label": "Profit", "expr": "sum(profit_sum)::numeric(14,2)"},
-            "margin_rate": {"label": "Margin rate", "expr": "(sum(profit_sum) / nullif(sum(net_revenue), 0))::numeric(14,6)"},
+            "item_lines": {"label": "Строки товаров", "expr": "count(*)::integer"},
+            "orders": {"label": "Заказы", "expr": "count(distinct order_id)::integer"},
+            "customers": {"label": "Клиенты", "expr": "count(distinct customer_id)::integer"},
+            "quantity": {"label": "Количество", "expr": "sum(quantity)::numeric(14,3)"},
+            "gross_revenue": {"label": "Валовая выручка", "expr": "sum(gross_revenue)::numeric(14,2)"},
+            "net_revenue": {"label": "Выручка", "expr": "sum(net_revenue)::numeric(14,2)"},
+            "avg_price": {"label": "Средняя цена", "expr": "(sum(net_revenue) / nullif(sum(quantity), 0))::numeric(14,2)"},
+            "discount_sum": {"label": "Скидка", "expr": "sum(discount_sum)::numeric(14,2)"},
+            "cost_sum": {"label": "Себестоимость", "expr": "sum(cost_sum)::numeric(14,2)"},
+            "profit_sum": {"label": "Прибыль", "expr": "sum(profit_sum)::numeric(14,2)"},
+            "margin_rate": {"label": "Маржа %", "expr": "(sum(profit_sum) / nullif(sum(net_revenue), 0))::numeric(14,6)"},
         },
         "filters": ["business_date", "organization_name", "order_source", "product_name", "category_name", "size_name", "is_delivery", "is_modifier", "customer_id", "phone_hash"],
     },
     "payments": {
-        "label": "Payments",
+        "label": "Оплаты",
         "view": "dl_olap_payments",
-        "description": "Payment rows by type/group.",
+        "description": "Типы оплат из iiko и суммы оплат.",
         "dimensions": {
             **COMMON_TIME_DIMENSIONS,
-            "organization_name": "Branch",
-            "order_source": "Order source",
-            "payment_type": "Payment type",
-            "payment_group": "Payment group",
-            "is_external": "External",
-            "is_prepay": "Prepay",
+            "organization_name": "Филиал",
+            "order_source": "Источник заказа",
+            "payment_type": "Тип оплаты",
+            "payment_group": "Группа оплаты",
+            "is_external": "Внешняя оплата",
+            "is_prepay": "Предоплата",
         },
         "metrics": {
-            "payments": {"label": "Payments", "expr": "count(*)::integer"},
-            "orders": {"label": "Orders", "expr": "count(distinct order_id)::integer"},
-            "payment_sum": {"label": "Payment sum", "expr": "sum(payment_sum)::numeric(14,2)"},
+            "payments": {"label": "Оплаты", "expr": "count(*)::integer"},
+            "orders": {"label": "Заказы", "expr": "count(distinct order_id)::integer"},
+            "payment_sum": {"label": "Сумма оплат", "expr": "sum(payment_sum)::numeric(14,2)"},
         },
         "filters": ["business_date", "organization_name", "order_source", "payment_type", "payment_group", "is_external", "is_prepay"],
     },
     "discounts": {
-        "label": "Discounts",
+        "label": "Скидки",
         "view": "dl_olap_discounts",
-        "description": "Discount rows by discount name/type/manual flag.",
+        "description": "Скидки, промо и ручные скидки.",
         "dimensions": {
             **COMMON_TIME_DIMENSIONS,
-            "organization_name": "Branch",
-            "order_source": "Order source",
-            "discount_name": "Discount",
-            "discount_type": "Discount type",
-            "is_manual": "Manual",
+            "organization_name": "Филиал",
+            "order_source": "Источник заказа",
+            "discount_name": "Скидка",
+            "discount_type": "Тип скидки",
+            "is_manual": "Ручная",
         },
         "metrics": {
-            "discount_rows": {"label": "Discount rows", "expr": "count(*)::integer"},
-            "orders": {"label": "Orders", "expr": "count(distinct order_id)::integer"},
-            "discount_sum": {"label": "Discount", "expr": "sum(discount_sum)::numeric(14,2)"},
+            "discount_rows": {"label": "Строки скидок", "expr": "count(*)::integer"},
+            "orders": {"label": "Заказы", "expr": "count(distinct order_id)::integer"},
+            "discount_sum": {"label": "Сумма скидок", "expr": "sum(discount_sum)::numeric(14,2)"},
         },
         "filters": ["business_date", "organization_name", "order_source", "discount_name", "discount_type", "is_manual"],
     },
     "delivery": {
-        "label": "Delivery",
+        "label": "Доставка",
         "view": "dl_olap_delivery",
-        "description": "Delivery statuses, zones, timings, couriers.",
+        "description": "Статусы, зоны, время доставки и курьеры.",
         "dimensions": {
             **COMMON_TIME_DIMENSIONS,
-            "organization_name": "Branch",
-            "order_source": "Order source",
-            "delivery_zone": "Delivery zone",
-            "delivery_status": "Delivery status",
-            "courier_name": "Courier",
-            "is_late": "Late",
-            "is_active": "Active",
+            "organization_name": "Филиал",
+            "order_source": "Источник заказа",
+            "delivery_zone": "Зона доставки",
+            "delivery_status": "Статус доставки",
+            "courier_name": "Курьер",
+            "is_late": "Опоздала",
+            "is_active": "Активная",
         },
         "metrics": {
-            "deliveries": {"label": "Deliveries", "expr": "count(*)::integer"},
-            "orders": {"label": "Orders", "expr": "count(distinct order_id)::integer"},
-            "late_deliveries": {"label": "Late deliveries", "expr": "count(*) filter (where is_late)::integer"},
-            "late_rate": {"label": "Late rate", "expr": "(count(*) filter (where is_late)::numeric / nullif(count(*), 0))::numeric(14,6)"},
-            "avg_delivery_minutes": {"label": "Avg delivery min", "expr": "avg(delivery_minutes)::numeric(14,2)"},
-            "avg_delay_minutes": {"label": "Avg delay min", "expr": "avg(delay_minutes)::numeric(14,2)"},
-            "avg_cooking_minutes": {"label": "Avg cooking min", "expr": "avg(cooking_minutes)::numeric(14,2)"},
+            "deliveries": {"label": "Доставки", "expr": "count(*)::integer"},
+            "orders": {"label": "Заказы", "expr": "count(distinct order_id)::integer"},
+            "late_deliveries": {"label": "Опоздания", "expr": "count(*) filter (where is_late)::integer"},
+            "late_rate": {"label": "Доля опозданий", "expr": "(count(*) filter (where is_late)::numeric / nullif(count(*), 0))::numeric(14,6)"},
+            "avg_delivery_minutes": {"label": "Среднее время доставки", "expr": "avg(delivery_minutes)::numeric(14,2)"},
+            "avg_delay_minutes": {"label": "Среднее опоздание", "expr": "avg(delay_minutes)::numeric(14,2)"},
+            "avg_cooking_minutes": {"label": "Среднее время готовки", "expr": "avg(cooking_minutes)::numeric(14,2)"},
         },
         "filters": ["business_date", "organization_name", "order_source", "delivery_zone", "delivery_status", "courier_name", "is_late", "is_active"],
     },
     "customers": {
-        "label": "Customers",
+        "label": "Клиенты",
         "view": "dl_olap_customers",
-        "description": "Customer order rows with lifetime customer metrics.",
+        "description": "Клиентские заказы и lifetime-метрики.",
         "dimensions": {
             **COMMON_TIME_DIMENSIONS,
-            "organization_name": "Branch",
-            "order_source": "Order source",
-            "customer_type": "Customer type",
-            "gender": "Gender",
-            "is_first_order": "First order",
-            "is_repeat_order": "Repeat order",
-            "is_delivery": "Delivery",
+            "organization_name": "Филиал",
+            "order_source": "Источник заказа",
+            "customer_type": "Тип клиента",
+            "gender": "Пол",
+            "is_first_order": "Первый заказ",
+            "is_repeat_order": "Повторный заказ",
+            "is_delivery": "Доставка",
         },
         "metrics": {
-            "customers": {"label": "Customers", "expr": "count(distinct customer_id)::integer"},
-            "orders": {"label": "Orders", "expr": "count(distinct order_id)::integer"},
-            "net_revenue": {"label": "Net revenue", "expr": "sum(net_revenue)::numeric(14,2)"},
-            "avg_check": {"label": "Avg check", "expr": "(sum(net_revenue) / nullif(count(distinct order_id), 0))::numeric(14,2)"},
-            "new_customers": {"label": "New customers", "expr": "count(distinct customer_id) filter (where is_first_order)::integer"},
-            "repeat_customers": {"label": "Repeat customers", "expr": "count(distinct customer_id) filter (where is_repeat_order)::integer"},
-            "avg_lifetime_orders": {"label": "Avg lifetime orders", "expr": "avg(customer_orders_lifetime)::numeric(14,2)"},
-            "avg_lifetime_revenue": {"label": "Avg lifetime revenue", "expr": "avg(customer_revenue_lifetime)::numeric(14,2)"},
+            "customers": {"label": "Клиенты", "expr": "count(distinct customer_id)::integer"},
+            "orders": {"label": "Заказы", "expr": "count(distinct order_id)::integer"},
+            "net_revenue": {"label": "Выручка", "expr": "sum(net_revenue)::numeric(14,2)"},
+            "avg_check": {"label": "Средний чек", "expr": "(sum(net_revenue) / nullif(count(distinct order_id), 0))::numeric(14,2)"},
+            "new_customers": {"label": "Новые клиенты", "expr": "count(distinct customer_id) filter (where is_first_order)::integer"},
+            "repeat_customers": {"label": "Повторные клиенты", "expr": "count(distinct customer_id) filter (where is_repeat_order)::integer"},
+            "avg_lifetime_orders": {"label": "Среднее заказов lifetime", "expr": "avg(customer_orders_lifetime)::numeric(14,2)"},
+            "avg_lifetime_revenue": {"label": "Средняя выручка lifetime", "expr": "avg(customer_revenue_lifetime)::numeric(14,2)"},
         },
         "filters": ["business_date", "organization_name", "order_source", "customer_type", "gender", "is_first_order", "is_repeat_order", "is_delivery", "customer_id", "phone_hash"],
     },
     "operations": {
-        "label": "Operations",
+        "label": "Операции",
         "view": "dl_olap_operations",
-        "description": "Losses/events: cancellations, refunds, manual discount signals, deletions.",
+        "description": "Потери и события: отмены, возвраты, ручные скидки, удаления.",
         "dimensions": {
             **COMMON_TIME_DIMENSIONS,
-            "organization_name": "Branch",
-            "order_source": "Order source",
-            "operation_type": "Operation type",
-            "operation_reason": "Reason",
-            "employee_name": "Employee",
-            "employee_role": "Employee role",
+            "organization_name": "Филиал",
+            "order_source": "Источник заказа",
+            "operation_type": "Тип операции",
+            "operation_reason": "Причина",
+            "employee_name": "Сотрудник",
+            "employee_role": "Роль сотрудника",
         },
         "metrics": {
-            "operations": {"label": "Operations", "expr": "count(*)::integer"},
-            "orders": {"label": "Orders", "expr": "count(distinct order_id)::integer"},
-            "operation_sum": {"label": "Operation sum", "expr": "sum(operation_sum)::numeric(14,2)"},
+            "operations": {"label": "Операции", "expr": "count(*)::integer"},
+            "orders": {"label": "Заказы", "expr": "count(distinct order_id)::integer"},
+            "operation_sum": {"label": "Сумма операции", "expr": "sum(operation_sum)::numeric(14,2)"},
         },
         "filters": ["business_date", "organization_name", "order_source", "operation_type", "operation_reason", "employee_name", "employee_role"],
     },
     "staff": {
-        "label": "Staff",
+        "label": "Сотрудники",
         "view": "dl_olap_staff",
-        "description": "Staff revenue/order counts from OLAP staff fields.",
+        "description": "Выручка и заказы по сотрудникам.",
         "dimensions": {
             **COMMON_TIME_DIMENSIONS,
-            "organization_name": "Branch",
-            "staff_role": "Staff role",
-            "staff_name": "Staff name",
+            "organization_name": "Филиал",
+            "staff_role": "Роль",
+            "staff_name": "Сотрудник",
         },
         "metrics": {
-            "orders": {"label": "Orders", "expr": "sum(orders_count)::integer"},
-            "net_revenue": {"label": "Net revenue", "expr": "sum(net_revenue)::numeric(14,2)"},
-            "avg_check": {"label": "Avg check", "expr": "(sum(net_revenue) / nullif(sum(orders_count), 0))::numeric(14,2)"},
+            "orders": {"label": "Заказы", "expr": "sum(orders_count)::integer"},
+            "net_revenue": {"label": "Выручка", "expr": "sum(net_revenue)::numeric(14,2)"},
+            "avg_check": {"label": "Средний чек", "expr": "(sum(net_revenue) / nullif(sum(orders_count), 0))::numeric(14,2)"},
         },
         "filters": ["business_date", "organization_name", "staff_role", "staff_name"],
     },
@@ -298,7 +298,7 @@ SAVED_REPORTS: list[dict[str, Any]] = [
         "name": "Оплаты по типам",
         "kind": "Финансы",
         "description": "Сумма оплат по типам и группам.",
-        "config": {"subject": "payments", "dimensions": ["payment_group", "payment_type"], "metrics": ["payment_sum", "orders"], "order_by": "payment_sum", "order_dir": "desc", "limit": 100},
+        "config": {"subject": "payments", "dimensions": ["payment_type", "payment_group"], "metrics": ["payment_sum", "orders"], "order_by": "payment_sum", "order_dir": "desc", "limit": 100},
     },
     {
         "id": "delivery_sla",
@@ -363,7 +363,7 @@ def fetch_one(cur: psycopg.Cursor[Any], sql: str, params: list[Any] | None = Non
     return dict(row or {})
 
 
-def run_dashboard() -> dict[str, Any]:
+def run_dashboard(date_from_override: str | None = None, date_to_override: str | None = None) -> dict[str, Any]:
     with connect() as conn:
         with conn.cursor() as cur:
             bounds = fetch_one(
@@ -371,7 +371,7 @@ def run_dashboard() -> dict[str, Any]:
                 """
                 SELECT
                     max(business_date)::date AS date_to,
-                    (max(business_date)::date - interval '29 day')::date AS date_from
+                    max(business_date)::date AS date_from
                 FROM dl_olap_sales
                 """,
             )
@@ -379,6 +379,10 @@ def run_dashboard() -> dict[str, Any]:
             date_to = bounds.get("date_to")
             if not date_to:
                 return {"date_from": None, "date_to": None, "kpis": [], "widgets": []}
+            if date_from_override:
+                date_from = date_from_override
+            if date_to_override:
+                date_to = date_to_override
 
             params = [date_from, date_to]
             kpi = fetch_one(
@@ -414,7 +418,6 @@ def run_dashboard() -> dict[str, Any]:
                 WHERE business_date BETWEEN %s AND %s
                 GROUP BY organization_name
                 ORDER BY net_revenue DESC NULLS LAST
-                LIMIT 10
                 """,
                 params,
             )
@@ -449,12 +452,12 @@ def run_dashboard() -> dict[str, Any]:
             payments = fetch_all(
                 cur,
                 """
-                SELECT COALESCE(NULLIF(payment_group, ''), 'unknown') AS payment_group,
+                SELECT COALESCE(NULLIF(payment_type, ''), 'Не указан') AS payment_type,
                        sum(payment_sum)::numeric(14,2) AS payment_sum,
                        count(distinct order_id)::integer AS orders_count
                 FROM dl_olap_payments
                 WHERE business_date BETWEEN %s AND %s
-                GROUP BY COALESCE(NULLIF(payment_group, ''), 'unknown')
+                GROUP BY COALESCE(NULLIF(payment_type, ''), 'Не указан')
                 ORDER BY payment_sum DESC NULLS LAST
                 LIMIT 10
                 """,
@@ -503,7 +506,6 @@ def run_dashboard() -> dict[str, Any]:
             {"id": "repeat_customers", "label": "Повторные клиенты", "value": customers.get("repeat_customers"), "format": "integer"},
         ],
         "widgets": [
-            {"id": "trend", "title": "Выручка по дням", "type": "line", "label": "business_date", "metric": "net_revenue", "rows": trend},
             {"id": "branches", "title": "Филиалы по выручке", "type": "table", "rows": branches},
             {"id": "categories", "title": "Категории", "type": "table", "rows": categories},
             {"id": "products", "title": "Товары", "type": "table", "rows": products},
@@ -687,8 +689,10 @@ def run_customer_segment(payload: dict[str, Any]) -> dict[str, Any]:
             GROUP BY customer_id
         )
         SELECT
-            s.customer_id,
-            s.phone_hash,
+            COALESCE(NULLIF(trim(concat_ws(' ', c.customer_name, c.customer_surname)), ''), 'Без имени') AS guest_name,
+            c.customer_type,
+            c.birthdate,
+            c.gender,
             s.selected_products_count,
             s.selected_products,
             s.selected_categories,
@@ -703,6 +707,7 @@ def run_customer_segment(payload: dict[str, Any]) -> dict[str, Any]:
             s.customer_revenue_lifetime
         FROM selected s
         JOIN period p ON p.customer_id = s.customer_id
+        LEFT JOIN dim_customers c ON c.customer_id = s.customer_id
         WHERE p.orders_in_period >= %s
         ORDER BY p.orders_in_period DESC, p.revenue_in_period DESC NULLS LAST
         LIMIT %s
@@ -744,9 +749,14 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json({"error": message}, status=status)
 
     def do_GET(self) -> None:
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
+        query = parse_qs(parsed.query)
         if path == "/api/dashboard":
-            self.send_json(run_dashboard())
+            self.send_json(run_dashboard(
+                (query.get("date_from") or [None])[0],
+                (query.get("date_to") or [None])[0],
+            ))
             return
         if path == "/api/schema":
             self.send_json({"subjects": subject_schema()})

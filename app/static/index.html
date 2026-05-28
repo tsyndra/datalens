@@ -27,7 +27,18 @@
             <h2>Главная аналитика</h2>
             <p id="dashboardPeriod" class="hint"></p>
           </div>
-          <button id="refreshDashboard" type="button">Обновить</button>
+          <div class="date-range">
+            <div class="quick-range" aria-label="Быстрый выбор периода">
+              <button class="quick active" data-range="today" type="button">Сегодня</button>
+              <button class="quick" data-range="yesterday" type="button">Вчера</button>
+              <button class="quick" data-range="7d" type="button">7 дней</button>
+              <button class="quick" data-range="30d" type="button">30 дней</button>
+            </div>
+            <input id="dashboardDateFrom" type="date" aria-label="Дата начала">
+            <span class="date-separator">-</span>
+            <input id="dashboardDateTo" type="date" aria-label="Дата окончания">
+            <button id="refreshDashboard" type="button">Обновить</button>
+          </div>
         </div>
         <div id="kpiGrid" class="kpi-grid"></div>
         <div id="widgetGrid" class="widget-grid"></div>
@@ -37,7 +48,7 @@
         <div class="dashboard-head">
           <div>
             <h2>Сохраненные отчеты</h2>
-            <p class="hint">Базовые отчеты можно открыть в конструкторе и менять под задачу.</p>
+            <p class="hint">Базовые отчеты открываются в конструкторе, где можно менять период, группировки, метрики и фильтры.</p>
           </div>
         </div>
         <div id="savedReports" class="saved-grid"></div>
@@ -45,11 +56,30 @@
 
       <section id="builder" class="page builder-page">
         <aside class="controls">
+          <div class="builder-context">
+            <strong>Конструктор отчета</strong>
+            <p id="builderContext" class="hint">Настройте период, группировки, метрики и фильтры.</p>
+          </div>
+
           <label>
-            Источник данных
+            Тип отчета
             <select id="subject"></select>
           </label>
           <p id="subjectDescription" class="hint"></p>
+
+          <div class="field-block">
+            <div class="block-title">Период отчета</div>
+            <div class="inline-controls">
+              <label>
+                С
+                <input id="reportDateFrom" type="date">
+              </label>
+              <label>
+                По
+                <input id="reportDateTo" type="date">
+              </label>
+            </div>
+          </div>
 
           <div class="field-block">
             <div class="block-title">Группировки</div>

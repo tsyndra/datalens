@@ -123,6 +123,51 @@ main {
   margin-bottom: 14px;
 }
 
+.date-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.quick-range {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: #eef2f5;
+  border-radius: 6px;
+}
+
+.quick {
+  min-height: 28px;
+  padding: 0 9px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 13px;
+}
+
+.quick.active {
+  background: #fff;
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.date-range input {
+  width: 142px;
+  min-height: 34px;
+}
+
+.date-separator {
+  color: var(--muted);
+}
+
+.date-range button {
+  min-height: 34px;
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -422,9 +467,36 @@ th {
   z-index: 1;
 }
 
+th.num,
 td.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.sort-head {
+  width: 100%;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  color: inherit !important;
+  text-align: left;
+  font-weight: 700;
+}
+
+th.num .sort-head {
+  text-align: right;
+}
+
+.builder-context {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.builder-context strong {
+  display: block;
+  margin-bottom: 4px;
 }
 
 .empty {
@@ -499,6 +571,30 @@ td.num {
   .dashboard-head {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .date-range {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  .quick-range {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .date-range input {
+    width: 100%;
+  }
+
+  .date-range button {
+    grid-column: 1 / -1;
+  }
+
+  .date-range .quick {
+    grid-column: auto;
   }
 
   .kpi-grid,
