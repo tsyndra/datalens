@@ -69,15 +69,10 @@
 
           <div class="field-block">
             <div class="block-title">Период отчета</div>
-            <div class="inline-controls">
-              <label>
-                С
-                <input id="reportDateFrom" type="date">
-              </label>
-              <label>
-                По
-                <input id="reportDateTo" type="date">
-              </label>
+            <div class="period-inputs">
+              <input id="reportDateFrom" type="date" aria-label="Дата начала отчета">
+              <span class="date-separator">-</span>
+              <input id="reportDateTo" type="date" aria-label="Дата окончания отчета">
             </div>
           </div>
 
@@ -164,15 +159,13 @@
               <input id="segmentLifetimeCount" type="number" min="0" value="1">
             </label>
           </div>
-          <div class="inline-controls">
-            <label>
-              Период с
-              <input id="segmentDateFrom" type="date">
-            </label>
-            <label>
-              Период по
-              <input id="segmentDateTo" type="date">
-            </label>
+          <div class="field-block">
+            <div class="block-title">Период</div>
+            <div class="period-inputs">
+              <input id="segmentDateFrom" type="date" aria-label="Дата начала сегмента">
+              <span class="date-separator">-</span>
+              <input id="segmentDateTo" type="date" aria-label="Дата окончания сегмента">
+            </div>
           </div>
           <div class="inline-controls">
             <label>
