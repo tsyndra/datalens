@@ -257,8 +257,8 @@ SELECT
     o.status AS order_status,
     o.is_delivery,
     i.product_id,
-    COALESCE(i.product_name, p.product_name, 'unknown') AS product_name,
-    COALESCE(i.category_name, p.category_name) AS category_name,
+    COALESCE(NULLIF(i.product_name, ''), p.product_name, 'unknown') AS product_name,
+    COALESCE(NULLIF(i.category_name, ''), p.category_name) AS category_name,
     i.quantity,
     i.unit_price,
     i.gross_revenue,
@@ -336,8 +336,8 @@ SELECT
     o.customer_id,
     c.phone_hash,
     i.product_id,
-    COALESCE(i.product_name, p.product_name, 'unknown') AS product_name,
-    COALESCE(i.category_name, p.category_name) AS category_name,
+    COALESCE(NULLIF(i.product_name, ''), p.product_name, 'unknown') AS product_name,
+    COALESCE(NULLIF(i.category_name, ''), p.category_name) AS category_name,
     count(DISTINCT i.order_id)::integer AS product_orders_lifetime,
     sum(i.quantity)::numeric(14,3) AS items_qty_lifetime,
     sum(i.net_revenue)::numeric(14,2) AS product_revenue_lifetime,
@@ -357,16 +357,16 @@ GROUP BY
     o.customer_id,
     c.phone_hash,
     i.product_id,
-    COALESCE(i.product_name, p.product_name, 'unknown'),
-    COALESCE(i.category_name, p.category_name);
+    COALESCE(NULLIF(i.product_name, ''), p.product_name, 'unknown'),
+    COALESCE(NULLIF(i.category_name, ''), p.category_name);
 
 CREATE OR REPLACE VIEW dl_report_customer_segments AS
 WITH customer_products AS (
     SELECT
         o.customer_id,
         i.product_id,
-        COALESCE(i.product_name, p.product_name, 'unknown') AS product_name,
-        COALESCE(i.category_name, p.category_name) AS category_name,
+        COALESCE(NULLIF(i.product_name, ''), p.product_name, 'unknown') AS product_name,
+        COALESCE(NULLIF(i.category_name, ''), p.category_name) AS category_name,
         count(DISTINCT i.order_id)::integer AS product_orders_lifetime,
         sum(i.quantity)::numeric(14,3) AS items_qty_lifetime,
         sum(i.net_revenue)::numeric(14,2) AS product_revenue_lifetime,
@@ -380,8 +380,8 @@ WITH customer_products AS (
     GROUP BY
         o.customer_id,
         i.product_id,
-        COALESCE(i.product_name, p.product_name, 'unknown'),
-        COALESCE(i.category_name, p.category_name)
+        COALESCE(NULLIF(i.product_name, ''), p.product_name, 'unknown'),
+        COALESCE(NULLIF(i.category_name, ''), p.category_name)
 )
 SELECT
     cp.customer_id,
@@ -648,8 +648,8 @@ SELECT
     o.is_delivery,
     o.is_cancelled,
     i.product_id,
-    COALESCE(i.product_name, p.product_name, 'unknown') AS product_name,
-    COALESCE(i.category_name, p.category_name) AS category_name,
+    COALESCE(NULLIF(i.product_name, ''), p.product_name, 'unknown') AS product_name,
+    COALESCE(NULLIF(i.category_name, ''), p.category_name) AS category_name,
     i.quantity,
     i.unit_price,
     i.gross_revenue,
