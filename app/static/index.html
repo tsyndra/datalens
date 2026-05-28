@@ -3,26 +3,50 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>iiko OLAP Reports</title>
+    <title>Аналитика и отчеты</title>
     <link rel="stylesheet" href="/static/styles.css">
   </head>
   <body>
     <header class="topbar">
       <div>
-        <h1>iiko OLAP Reports</h1>
-        <p>Конструктор отчетов поверх локального PostgreSQL</p>
+        <h1>Аналитика и отчеты</h1>
+        <p>Метрики, сохраненные отчеты и конструктор выборок</p>
       </div>
-      <nav class="tabs" aria-label="Views">
-        <button class="tab active" data-tab="builder">OLAP Builder</button>
-        <button class="tab" data-tab="segments">Customer Segments</button>
+      <nav class="tabs" aria-label="Разделы">
+        <button class="tab active" data-tab="dashboard">Главная</button>
+        <button class="tab" data-tab="saved">Отчеты</button>
+        <button class="tab" data-tab="builder">Конструктор</button>
+        <button class="tab" data-tab="segments">Сегменты</button>
       </nav>
     </header>
 
     <main>
-      <section id="builder" class="panel active-panel">
+      <section id="dashboard" class="page active-page">
+        <div class="dashboard-head">
+          <div>
+            <h2>Главная аналитика</h2>
+            <p id="dashboardPeriod" class="hint"></p>
+          </div>
+          <button id="refreshDashboard" type="button">Обновить</button>
+        </div>
+        <div id="kpiGrid" class="kpi-grid"></div>
+        <div id="widgetGrid" class="widget-grid"></div>
+      </section>
+
+      <section id="saved" class="page">
+        <div class="dashboard-head">
+          <div>
+            <h2>Сохраненные отчеты</h2>
+            <p class="hint">Базовые отчеты можно открыть в конструкторе и менять под задачу.</p>
+          </div>
+        </div>
+        <div id="savedReports" class="saved-grid"></div>
+      </section>
+
+      <section id="builder" class="page builder-page">
         <aside class="controls">
           <label>
-            Факт
+            Источник данных
             <select id="subject"></select>
           </label>
           <p id="subjectDescription" class="hint"></p>
@@ -77,12 +101,11 @@
             </div>
             <span id="status" class="status">Готово</span>
           </div>
-          <div id="chartWrap" class="chart-wrap"></div>
           <div id="tableWrap" class="table-wrap"></div>
         </section>
       </section>
 
-      <section id="segments" class="panel">
+      <section id="segments" class="page builder-page">
         <aside class="controls">
           <label>
             Тип условия

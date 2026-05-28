@@ -57,6 +57,7 @@ h2 {
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -95,6 +96,163 @@ button:hover {
 
 main {
   padding: 16px 18px;
+}
+
+.page {
+  display: none;
+}
+
+.active-page {
+  display: block;
+}
+
+.builder-page {
+  grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.builder-page.active-page {
+  display: grid;
+}
+
+.dashboard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.kpi-card,
+.widget-card,
+.saved-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.kpi-card {
+  padding: 14px;
+  display: grid;
+  gap: 6px;
+  min-height: 86px;
+}
+
+.kpi-card span,
+.tag {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.kpi-card strong {
+  font-size: 24px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.widget-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.widget-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.widget-head {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.widget-head h3,
+.saved-card h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.widget-body {
+  padding: 0;
+}
+
+.compact-table {
+  overflow: auto;
+  max-height: 320px;
+}
+
+.compact-table table {
+  min-width: 0;
+}
+
+.compact-table th,
+.compact-table td {
+  padding: 7px 9px;
+  font-size: 13px;
+}
+
+.mini-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.mini-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.mini-row strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-track {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 999px;
+  background: #edf1f4;
+  overflow: hidden;
+}
+
+.mini-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.saved-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.saved-card {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 170px;
+}
+
+.saved-card p {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.tag {
+  display: inline-flex;
+  margin-bottom: 8px;
 }
 
 .panel {
@@ -238,7 +396,7 @@ input {
 
 .table-wrap {
   overflow: auto;
-  max-height: 560px;
+  max-height: calc(100vh - 176px);
   border-top: 1px solid var(--line);
 }
 
@@ -254,55 +412,6 @@ td {
   border-bottom: 1px solid var(--line);
   text-align: left;
   white-space: nowrap;
-}
-
-.chart-wrap {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  padding: 12px 14px;
-  background: #fbfcfd;
-}
-
-.chart-empty {
-  grid-column: 1 / -1;
-  color: var(--muted);
-}
-
-.bar-card {
-  min-width: 0;
-  display: grid;
-  gap: 6px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #fff;
-}
-
-.bar-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.bar-value {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.bar-track {
-  height: 7px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: #edf1f4;
-}
-
-.bar-fill {
-  height: 100%;
-  min-width: 2px;
-  background: var(--accent);
 }
 
 th {
@@ -329,7 +438,7 @@ td.num {
     flex-direction: column;
   }
 
-  .panel {
+  .builder-page.active-page {
     grid-template-columns: 1fr;
   }
 
@@ -337,7 +446,9 @@ td.num {
     max-height: 560px;
   }
 
-  .chart-wrap {
+  .kpi-grid,
+  .widget-grid,
+  .saved-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -351,7 +462,7 @@ td.num {
     padding: 14px 18px;
   }
 
-  .panel {
+  .builder-page {
     gap: 12px;
   }
 
@@ -376,10 +487,6 @@ td.num {
     width: 36px;
   }
 
-  .chart-wrap {
-    grid-template-columns: 1fr;
-  }
-
   table {
     min-width: 560px;
   }
@@ -387,5 +494,20 @@ td.num {
   th,
   td {
     padding: 8px;
+  }
+
+  .dashboard-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .kpi-grid,
+  .widget-grid,
+  .saved-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .kpi-card strong {
+    font-size: 21px;
   }
 }

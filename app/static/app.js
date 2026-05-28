@@ -1,34 +1,19 @@
 const state = {
   schema: null,
-  subject: null,
+  reports: [],
+  dashboard: null,
 };
 
 const $ = (id) => document.getElementById(id);
 
-function setStatus(id, text, isError = false) {
-  const el = $(id);
-  el.textContent = text;
-  el.style.color = isError ? "#b42318" : "#657282";
-}
-
 async function api(path, payload = null) {
   const options = payload
-    ? {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }
+    ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
     : {};
   const response = await fetch(path, options);
   if (!response.ok) {
-    let message = `HTTP ${response.status}`;
-    try {
-      const data = await response.json();
-      message = data.error || message;
-    } catch (_) {
-      // ignore
-    }
-    throw new Error(message);
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `HTTP ${response.status}`);
   }
   return response.json();
 }
@@ -38,6 +23,159 @@ function option(value, label) {
   el.value = value;
   el.textContent = label;
   return el;
+}
+
+function setStatus(id, text, isError = false) {
+  const el = $(id);
+  el.textContent = text;
+  el.style.color = isError ? "#b42318" : "#657282";
+}
+
+function formatValue(value, format = "") {
+  if (value === null || value === undefined || value === "") return "—";
+  const num = Number(value);
+  if (!Number.isFinite(num)) return String(value);
+  if (format === "money") {
+    return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(num) + " ₽";
+  }
+  if (format === "percent") {
+    return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(num * 100) + "%";
+  }
+  if (format === "integer") {
+    return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(num);
+  }
+  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(num);
+}
+
+function renderTable(containerId, columns, rows, maxRows = null) {
+  const wrap = $(containerId);
+  wrap.innerHTML = "";
+  if (!rows || !rows.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "Нет строк под выбранные условия";
+    wrap.append(empty);
+    return;
+  }
+  const visibleRows = maxRows ? rows.slice(0, maxRows) : rows;
+  const table = document.createElement("table");
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  columns.forEach((col) => {
+    const th = document.createElement("th");
+    th.textContent = col;
+    headRow.append(th);
+  });
+  thead.append(headRow);
+  const tbody = document.createElement("tbody");
+  visibleRows.forEach((row) => {
+    const tr = document.createElement("tr");
+    columns.forEach((col) => {
+      const td = document.createElement("td");
+      const value = row[col];
+      td.textContent = value === null || value === undefined ? "" : value;
+      if (typeof value === "number" || /^-?\d+(\.\d+)?$/.test(String(value))) td.className = "num";
+      tr.append(td);
+    });
+    tbody.append(tr);
+  });
+  table.append(thead, tbody);
+  wrap.append(table);
+}
+
+function objectColumns(rows) {
+  return rows && rows[0] ? Object.keys(rows[0]) : [];
+}
+
+function renderMiniBars(container, rows, labelKey, valueKey) {
+  container.innerHTML = "";
+  const values = rows.map((row) => Math.abs(Number(row[valueKey]))).filter(Number.isFinite);
+  const max = Math.max(...values, 0);
+  rows.slice(0, 8).forEach((row) => {
+    const item = document.createElement("div");
+    item.className = "mini-row";
+    const label = document.createElement("span");
+    label.textContent = row[labelKey] || "—";
+    label.title = row[labelKey] || "";
+    const value = document.createElement("strong");
+    value.textContent = formatValue(row[valueKey]);
+    const track = document.createElement("div");
+    track.className = "mini-track";
+    const fill = document.createElement("div");
+    fill.className = "mini-fill";
+    fill.style.width = max ? `${Math.max(3, Math.round((Math.abs(Number(row[valueKey])) / max) * 100))}%` : "0";
+    track.append(fill);
+    item.append(label, value, track);
+    container.append(item);
+  });
+}
+
+async function loadDashboard() {
+  $("kpiGrid").innerHTML = '<div class="empty">Загрузка...</div>';
+  const data = await api("/api/dashboard");
+  state.dashboard = data;
+  $("dashboardPeriod").textContent = data.date_from && data.date_to ? `Период: ${data.date_from} — ${data.date_to}` : "Нет данных";
+
+  const kpiGrid = $("kpiGrid");
+  kpiGrid.innerHTML = "";
+  data.kpis.forEach((kpi) => {
+    const card = document.createElement("article");
+    card.className = "kpi-card";
+    card.innerHTML = `<span>${kpi.label}</span><strong>${formatValue(kpi.value, kpi.format)}</strong>`;
+    kpiGrid.append(card);
+  });
+
+  const widgetGrid = $("widgetGrid");
+  widgetGrid.innerHTML = "";
+  data.widgets.forEach((widget) => {
+    const card = document.createElement("article");
+    card.className = "widget-card";
+    const head = document.createElement("div");
+    head.className = "widget-head";
+    head.innerHTML = `<h3>${widget.title}</h3>`;
+    const body = document.createElement("div");
+    body.className = "widget-body";
+    if (widget.type === "line") {
+      renderMiniBars(body, widget.rows, widget.label, widget.metric);
+    } else {
+      const tableBox = document.createElement("div");
+      tableBox.className = "compact-table";
+      tableBox.id = `widget-${widget.id}`;
+      body.append(tableBox);
+      setTimeout(() => renderTable(tableBox.id, objectColumns(widget.rows), widget.rows, 8), 0);
+    }
+    card.append(head, body);
+    widgetGrid.append(card);
+  });
+}
+
+function renderSavedReports() {
+  const wrap = $("savedReports");
+  wrap.innerHTML = "";
+  state.reports.forEach((report) => {
+    const card = document.createElement("article");
+    card.className = "saved-card";
+    card.innerHTML = `
+      <div>
+        <span class="tag">${report.kind}</span>
+        <h3>${report.name}</h3>
+        <p>${report.description}</p>
+      </div>
+    `;
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const open = document.createElement("button");
+    open.type = "button";
+    open.textContent = "Открыть";
+    open.addEventListener("click", () => openReport(report.config));
+    actions.append(open);
+    card.append(actions);
+    wrap.append(card);
+  });
+}
+
+function checkedValues(containerId) {
+  return [...$(containerId).querySelectorAll("input:checked")].map((input) => input.value);
 }
 
 function renderChecks(containerId, values, selected = []) {
@@ -57,75 +195,55 @@ function renderChecks(containerId, values, selected = []) {
   });
 }
 
-function checkedValues(containerId) {
-  return [...$(containerId).querySelectorAll("input:checked")].map((input) => input.value);
-}
-
 function currentSubject() {
   return state.schema.subjects[$("subject").value];
 }
 
-function renderSubject() {
-  const key = $("subject").value;
-  state.subject = key;
+function renderSubject(config = null) {
   const subject = currentSubject();
   $("subjectDescription").textContent = subject.description || "";
-
-  const defaultDims = subject.dimensions.business_date ? ["business_date"] : Object.keys(subject.dimensions).slice(0, 1);
   const metricKeys = Object.keys(subject.metrics);
   const defaultMetrics = metricKeys.includes("net_revenue")
     ? ["net_revenue", ...(metricKeys.includes("orders") ? ["orders"] : [])]
     : metricKeys.slice(0, 2);
-  renderChecks("dimensions", subject.dimensions, defaultDims);
-  renderChecks("metrics", subject.metrics, defaultMetrics);
-  renderOrderOptions();
+  const dimensions = config?.dimensions || (subject.dimensions.business_date ? ["business_date"] : Object.keys(subject.dimensions).slice(0, 1));
+  const metrics = config?.metrics || defaultMetrics;
+  renderChecks("dimensions", subject.dimensions, dimensions);
+  renderChecks("metrics", subject.metrics, metrics);
   $("filters").innerHTML = "";
+  $("limit").value = config?.limit || 50;
+  $("orderDir").value = config?.order_dir || "desc";
+  renderOrderOptions(config?.order_by);
 }
 
-function renderOrderOptions() {
+function renderOrderOptions(selected = null) {
   const orderBy = $("orderBy");
   const subject = currentSubject();
   orderBy.innerHTML = "";
   checkedValues("dimensions").forEach((key) => orderBy.append(option(key, subject.dimensions[key] || key)));
   checkedValues("metrics").forEach((key) => orderBy.append(option(key, subject.metrics[key] || key)));
+  if (selected && [...orderBy.options].some((opt) => opt.value === selected)) orderBy.value = selected;
 }
 
 function addFilterRow(initial = {}) {
   const subject = currentSubject();
   const row = document.createElement("div");
   row.className = "filter-row";
-
   const field = document.createElement("select");
   Object.entries(subject.filters).forEach(([key, label]) => field.append(option(key, label)));
   field.value = initial.field || Object.keys(subject.filters)[0];
-
   const op = document.createElement("select");
-  [
-    ["eq", "="],
-    ["neq", "!="],
-    ["contains", "contains"],
-    ["not_contains", "not contains"],
-    ["gte", ">="],
-    ["lte", "<="],
-    ["gt", ">"],
-    ["lt", "<"],
-    ["between", "between"],
-    ["is_null", "is null"],
-    ["not_null", "not null"],
-  ].forEach(([value, label]) => op.append(option(value, label)));
+  [["eq", "="], ["neq", "!="], ["contains", "contains"], ["not_contains", "not contains"], ["gte", ">="], ["lte", "<="], ["gt", ">"], ["lt", "<"], ["between", "between"], ["is_null", "is null"], ["not_null", "not null"]].forEach(([value, label]) => op.append(option(value, label)));
   op.value = initial.op || "eq";
-
   const value = document.createElement("input");
   value.type = "text";
-  value.placeholder = "value";
+  value.placeholder = "value или from..to для between";
   value.value = initial.value || "";
-
   const remove = document.createElement("button");
   remove.type = "button";
   remove.className = "remove";
   remove.textContent = "×";
   remove.addEventListener("click", () => row.remove());
-
   row.append(field, op, value, remove);
   $("filters").append(row);
 }
@@ -151,101 +269,8 @@ function reportPayload() {
     filters: collectFilters(),
     order_by: $("orderBy").value,
     order_dir: $("orderDir").value,
-    limit: Number($("limit").value || 500),
+    limit: Number($("limit").value || 50),
   };
-}
-
-function renderTable(containerId, columns, rows) {
-  const wrap = $(containerId);
-  wrap.innerHTML = "";
-  if (!rows.length) {
-    const empty = document.createElement("div");
-    empty.className = "empty";
-    empty.textContent = "Нет строк под выбранные условия";
-    wrap.append(empty);
-    return;
-  }
-  const table = document.createElement("table");
-  const thead = document.createElement("thead");
-  const headRow = document.createElement("tr");
-  columns.forEach((col) => {
-    const th = document.createElement("th");
-    th.textContent = col;
-    headRow.append(th);
-  });
-  thead.append(headRow);
-  const tbody = document.createElement("tbody");
-  rows.forEach((row) => {
-    const tr = document.createElement("tr");
-    columns.forEach((col) => {
-      const td = document.createElement("td");
-      const value = row[col];
-      td.textContent = value === null || value === undefined ? "" : value;
-      if (typeof value === "number" || /^-?\d+(\.\d+)?$/.test(String(value))) {
-        td.className = "num";
-      }
-      tr.append(td);
-    });
-    tbody.append(tr);
-  });
-  table.append(thead, tbody);
-  wrap.append(table);
-}
-
-function formatValue(value) {
-  if (value === null || value === undefined || value === "") return "";
-  const num = Number(value);
-  if (Number.isFinite(num)) {
-    return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(num);
-  }
-  return String(value);
-}
-
-function renderChart(columns, rows) {
-  const wrap = $("chartWrap");
-  wrap.innerHTML = "";
-  const dims = checkedValues("dimensions");
-  const metrics = checkedValues("metrics");
-  const labelCol = dims[0];
-  const valueCol = metrics[0];
-  if (!labelCol || !valueCol || !rows.length || !columns.includes(labelCol) || !columns.includes(valueCol)) {
-    const empty = document.createElement("div");
-    empty.className = "chart-empty";
-    empty.textContent = "Выберите группировку и числовую метрику для preview";
-    wrap.append(empty);
-    return;
-  }
-  const items = rows
-    .map((row) => ({ label: row[labelCol], value: Number(row[valueCol]) }))
-    .filter((x) => Number.isFinite(x.value))
-    .slice(0, window.innerWidth < 520 ? 4 : 8);
-  const max = Math.max(...items.map((x) => Math.abs(x.value)), 0);
-  if (!max) {
-    const empty = document.createElement("div");
-    empty.className = "chart-empty";
-    empty.textContent = "Нет числовых значений для preview";
-    wrap.append(empty);
-    return;
-  }
-  items.forEach((item) => {
-    const card = document.createElement("div");
-    card.className = "bar-card";
-    const label = document.createElement("div");
-    label.className = "bar-label";
-    label.title = item.label ?? "";
-    label.textContent = item.label ?? "";
-    const value = document.createElement("div");
-    value.className = "bar-value";
-    value.textContent = formatValue(item.value);
-    const track = document.createElement("div");
-    track.className = "bar-track";
-    const fill = document.createElement("div");
-    fill.className = "bar-fill";
-    fill.style.width = `${Math.max(3, Math.round((Math.abs(item.value) / max) * 100))}%`;
-    track.append(fill);
-    card.append(label, value, track);
-    wrap.append(card);
-  });
 }
 
 async function runReport() {
@@ -253,7 +278,6 @@ async function runReport() {
   try {
     const data = await api("/api/report", reportPayload());
     $("resultMeta").textContent = `${$("subject").selectedOptions[0].textContent}: ${checkedValues("dimensions").join(", ") || "без группировки"}`;
-    renderChart(data.columns, data.rows);
     renderTable("tableWrap", data.columns, data.rows);
     setStatus("status", `${data.rows.length} строк`);
   } catch (error) {
@@ -262,11 +286,7 @@ async function runReport() {
 }
 
 async function downloadCsv(path, payload, name) {
-  const response = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.error || `HTTP ${response.status}`);
@@ -305,30 +325,44 @@ async function runSegment() {
   }
 }
 
-async function init() {
-  state.schema = await api("/api/schema");
-  const subject = $("subject");
-  Object.entries(state.schema.subjects).forEach(([key, cfg]) => {
-    subject.append(option(key, cfg.label));
-  });
-  subject.value = "sales";
-  renderSubject();
+function switchTab(tabName) {
+  document.querySelectorAll(".tab").forEach((el) => el.classList.toggle("active", el.dataset.tab === tabName));
+  document.querySelectorAll(".page").forEach((el) => el.classList.toggle("active-page", el.id === tabName));
+}
 
-  subject.addEventListener("change", renderSubject);
-  $("dimensions").addEventListener("change", renderOrderOptions);
-  $("metrics").addEventListener("change", renderOrderOptions);
+function openReport(config) {
+  $("subject").value = config.subject || "sales";
+  renderSubject(config);
+  switchTab("builder");
+  runReport();
+}
+
+async function init() {
+  const [schema, reports] = await Promise.all([api("/api/schema"), api("/api/saved-reports")]);
+  state.schema = schema;
+  state.reports = reports.reports || [];
+
+  Object.entries(state.schema.subjects).forEach(([key, cfg]) => $("subject").append(option(key, cfg.label)));
+  $("subject").value = "sales";
+  renderSubject();
+  renderSavedReports();
+  await loadDashboard();
+
+  $("refreshDashboard").addEventListener("click", loadDashboard);
+  $("subject").addEventListener("change", () => renderSubject());
+  $("dimensions").addEventListener("change", () => renderOrderOptions());
+  $("metrics").addEventListener("change", () => renderOrderOptions());
   $("addFilter").addEventListener("click", () => addFilterRow());
   $("runReport").addEventListener("click", runReport);
   $("exportReport").addEventListener("click", async () => {
     setStatus("status", "Готовлю CSV...");
     try {
-      await downloadCsv("/api/export.csv", reportPayload(), "olap_report.csv");
+      await downloadCsv("/api/export.csv", reportPayload(), "report.csv");
       setStatus("status", "CSV готов");
     } catch (error) {
       setStatus("status", error.message, true);
     }
   });
-
   $("runSegment").addEventListener("click", runSegment);
   $("exportSegment").addEventListener("click", async () => {
     setStatus("segmentStatus", "Готовлю CSV...");
@@ -339,19 +373,9 @@ async function init() {
       setStatus("segmentStatus", error.message, true);
     }
   });
-
-  document.querySelectorAll(".tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach((el) => el.classList.remove("active"));
-      document.querySelectorAll(".panel").forEach((el) => el.classList.remove("active-panel"));
-      tab.classList.add("active");
-      document.getElementById(tab.dataset.tab).classList.add("active-panel");
-    });
-  });
-
-  await runReport();
+  document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => switchTab(tab.dataset.tab)));
 }
 
 init().catch((error) => {
-  setStatus("status", error.message, true);
+  document.body.innerHTML = `<main><div class="empty">${error.message}</div></main>`;
 });

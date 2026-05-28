@@ -264,6 +264,58 @@ SUBJECTS: dict[str, dict[str, Any]] = {
     },
 }
 
+SAVED_REPORTS: list[dict[str, Any]] = [
+    {
+        "id": "revenue_by_day",
+        "name": "Выручка по дням",
+        "kind": "Продажи",
+        "description": "Динамика выручки и заказов по дням.",
+        "config": {"subject": "sales", "dimensions": ["business_date"], "metrics": ["net_revenue", "orders"], "order_by": "business_date", "order_dir": "desc", "limit": 90},
+    },
+    {
+        "id": "revenue_by_branch",
+        "name": "Выручка по филиалам",
+        "kind": "Продажи",
+        "description": "Рейтинг филиалов по выручке и заказам.",
+        "config": {"subject": "sales", "dimensions": ["organization_name"], "metrics": ["net_revenue", "orders", "avg_check"], "order_by": "net_revenue", "order_dir": "desc", "limit": 100},
+    },
+    {
+        "id": "top_categories",
+        "name": "Категории по выручке",
+        "kind": "Товары",
+        "description": "Категории меню по выручке, количеству и заказам.",
+        "config": {"subject": "products", "dimensions": ["category_name"], "metrics": ["net_revenue", "quantity", "orders"], "order_by": "net_revenue", "order_dir": "desc", "limit": 100},
+    },
+    {
+        "id": "top_products",
+        "name": "Товары по выручке",
+        "kind": "Товары",
+        "description": "Топ товаров с количеством, выручкой и средней ценой.",
+        "config": {"subject": "products", "dimensions": ["product_name", "category_name"], "metrics": ["net_revenue", "quantity", "avg_price"], "order_by": "net_revenue", "order_dir": "desc", "limit": 200},
+    },
+    {
+        "id": "payments_by_type",
+        "name": "Оплаты по типам",
+        "kind": "Финансы",
+        "description": "Сумма оплат по типам и группам.",
+        "config": {"subject": "payments", "dimensions": ["payment_group", "payment_type"], "metrics": ["payment_sum", "orders"], "order_by": "payment_sum", "order_dir": "desc", "limit": 100},
+    },
+    {
+        "id": "delivery_sla",
+        "name": "SLA доставки",
+        "kind": "Доставка",
+        "description": "Опоздания, среднее время доставки и зоны.",
+        "config": {"subject": "delivery", "dimensions": ["organization_name", "delivery_zone"], "metrics": ["deliveries", "late_rate", "avg_delivery_minutes"], "order_by": "late_rate", "order_dir": "desc", "limit": 100},
+    },
+    {
+        "id": "customer_repeat_orders",
+        "name": "Повторные клиенты",
+        "kind": "Клиенты",
+        "description": "Новые и повторные клиенты по дням.",
+        "config": {"subject": "customers", "dimensions": ["business_date"], "metrics": ["customers", "new_customers", "repeat_customers", "net_revenue"], "order_by": "business_date", "order_dir": "desc", "limit": 90},
+    },
+]
+
 
 OPS = {
     "eq": "=",
@@ -298,6 +350,167 @@ def subject_schema() -> dict[str, Any]:
             "filters": filter_labels,
         }
     return result
+
+
+def fetch_all(cur: psycopg.Cursor[Any], sql: str, params: list[Any] | None = None) -> list[dict[str, Any]]:
+    cur.execute(sql, params or [])
+    return list(cur.fetchall())
+
+
+def fetch_one(cur: psycopg.Cursor[Any], sql: str, params: list[Any] | None = None) -> dict[str, Any]:
+    cur.execute(sql, params or [])
+    row = cur.fetchone()
+    return dict(row or {})
+
+
+def run_dashboard() -> dict[str, Any]:
+    with connect() as conn:
+        with conn.cursor() as cur:
+            bounds = fetch_one(
+                cur,
+                """
+                SELECT
+                    max(business_date)::date AS date_to,
+                    (max(business_date)::date - interval '29 day')::date AS date_from
+                FROM dl_olap_sales
+                """,
+            )
+            date_from = bounds.get("date_from")
+            date_to = bounds.get("date_to")
+            if not date_to:
+                return {"date_from": None, "date_to": None, "kpis": [], "widgets": []}
+
+            params = [date_from, date_to]
+            kpi = fetch_one(
+                cur,
+                """
+                SELECT
+                    sum(net_revenue)::numeric(14,2) AS net_revenue,
+                    sum(orders_count)::integer AS orders_count,
+                    (sum(net_revenue) / nullif(sum(orders_count), 0))::numeric(14,2) AS avg_check,
+                    (sum(discount_sum) / nullif(sum(gross_revenue), 0))::numeric(14,6) AS discount_share,
+                    sum(refund_sum)::numeric(14,2) AS refund_sum
+                FROM dl_olap_sales
+                WHERE business_date BETWEEN %s AND %s
+                """,
+                params,
+            )
+            trend = fetch_all(
+                cur,
+                """
+                SELECT business_date, sum(net_revenue)::numeric(14,2) AS net_revenue, sum(orders_count)::integer AS orders_count
+                FROM dl_olap_sales
+                WHERE business_date BETWEEN %s AND %s
+                GROUP BY business_date
+                ORDER BY business_date
+                """,
+                params,
+            )
+            branches = fetch_all(
+                cur,
+                """
+                SELECT organization_name, sum(net_revenue)::numeric(14,2) AS net_revenue, sum(orders_count)::integer AS orders_count
+                FROM dl_olap_sales
+                WHERE business_date BETWEEN %s AND %s
+                GROUP BY organization_name
+                ORDER BY net_revenue DESC NULLS LAST
+                LIMIT 10
+                """,
+                params,
+            )
+            categories = fetch_all(
+                cur,
+                """
+                SELECT COALESCE(NULLIF(category_name, ''), 'Без категории') AS category_name,
+                       sum(net_revenue)::numeric(14,2) AS net_revenue,
+                       sum(quantity)::numeric(14,3) AS quantity
+                FROM dl_olap_products
+                WHERE business_date BETWEEN %s AND %s
+                GROUP BY COALESCE(NULLIF(category_name, ''), 'Без категории')
+                ORDER BY net_revenue DESC NULLS LAST
+                LIMIT 10
+                """,
+                params,
+            )
+            products = fetch_all(
+                cur,
+                """
+                SELECT product_name, COALESCE(NULLIF(category_name, ''), 'Без категории') AS category_name,
+                       sum(net_revenue)::numeric(14,2) AS net_revenue,
+                       sum(quantity)::numeric(14,3) AS quantity
+                FROM dl_olap_products
+                WHERE business_date BETWEEN %s AND %s
+                GROUP BY product_name, COALESCE(NULLIF(category_name, ''), 'Без категории')
+                ORDER BY net_revenue DESC NULLS LAST
+                LIMIT 10
+                """,
+                params,
+            )
+            payments = fetch_all(
+                cur,
+                """
+                SELECT COALESCE(NULLIF(payment_group, ''), 'unknown') AS payment_group,
+                       sum(payment_sum)::numeric(14,2) AS payment_sum,
+                       count(distinct order_id)::integer AS orders_count
+                FROM dl_olap_payments
+                WHERE business_date BETWEEN %s AND %s
+                GROUP BY COALESCE(NULLIF(payment_group, ''), 'unknown')
+                ORDER BY payment_sum DESC NULLS LAST
+                LIMIT 10
+                """,
+                params,
+            )
+            delivery = fetch_all(
+                cur,
+                """
+                SELECT organization_name,
+                       count(*)::integer AS deliveries,
+                       count(*) FILTER (WHERE is_late)::integer AS late_deliveries,
+                       (count(*) FILTER (WHERE is_late)::numeric / nullif(count(*), 0))::numeric(14,6) AS late_rate,
+                       avg(delivery_minutes)::numeric(14,2) AS avg_delivery_minutes
+                FROM dl_olap_delivery
+                WHERE business_date BETWEEN %s AND %s
+                GROUP BY organization_name
+                ORDER BY late_rate DESC NULLS LAST
+                LIMIT 10
+                """,
+                params,
+            )
+            customers = fetch_one(
+                cur,
+                """
+                SELECT
+                    count(distinct customer_id)::integer AS customers,
+                    count(distinct customer_id) FILTER (WHERE is_first_order)::integer AS new_customers,
+                    count(distinct customer_id) FILTER (WHERE is_repeat_order)::integer AS repeat_customers
+                FROM dl_olap_customers
+                WHERE business_date BETWEEN %s AND %s
+                """,
+                params,
+            )
+
+    return {
+        "date_from": date_from,
+        "date_to": date_to,
+        "kpis": [
+            {"id": "net_revenue", "label": "Выручка", "value": kpi.get("net_revenue"), "format": "money"},
+            {"id": "orders_count", "label": "Заказы", "value": kpi.get("orders_count"), "format": "integer"},
+            {"id": "avg_check", "label": "Средний чек", "value": kpi.get("avg_check"), "format": "money"},
+            {"id": "discount_share", "label": "Скидка %", "value": kpi.get("discount_share"), "format": "percent"},
+            {"id": "refund_sum", "label": "Возвраты", "value": kpi.get("refund_sum"), "format": "money"},
+            {"id": "customers", "label": "Клиенты", "value": customers.get("customers"), "format": "integer"},
+            {"id": "new_customers", "label": "Новые клиенты", "value": customers.get("new_customers"), "format": "integer"},
+            {"id": "repeat_customers", "label": "Повторные клиенты", "value": customers.get("repeat_customers"), "format": "integer"},
+        ],
+        "widgets": [
+            {"id": "trend", "title": "Выручка по дням", "type": "line", "label": "business_date", "metric": "net_revenue", "rows": trend},
+            {"id": "branches", "title": "Филиалы по выручке", "type": "table", "rows": branches},
+            {"id": "categories", "title": "Категории", "type": "table", "rows": categories},
+            {"id": "products", "title": "Товары", "type": "table", "rows": products},
+            {"id": "payments", "title": "Оплаты", "type": "table", "rows": payments},
+            {"id": "delivery", "title": "Доставка и SLA", "type": "table", "rows": delivery},
+        ],
+    }
 
 
 def validate_list(values: Any, allowed: dict[str, Any], default: list[str]) -> list[str]:
@@ -532,8 +745,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         path = urlparse(self.path).path
+        if path == "/api/dashboard":
+            self.send_json(run_dashboard())
+            return
         if path == "/api/schema":
             self.send_json({"subjects": subject_schema()})
+            return
+        if path == "/api/saved-reports":
+            self.send_json({"reports": SAVED_REPORTS})
             return
         if path == "/favicon.ico":
             self.send_response(204)
