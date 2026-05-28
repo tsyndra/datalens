@@ -15,6 +15,7 @@ PostgreSQL + ETL слой для аналитики iiko в Yandex DataLens.
 | [docs/storage_strategy.md](docs/storage_strategy.md) | как хранить данные для DataLens без раздувания raw JSON |
 | [docs/api_sources.md](docs/api_sources.md) | единая матрица iikoCloud/iikoServer источников |
 | [docs/report_plan.md](docs/report_plan.md) | план DataLens-дашбордов и метрик |
+| [docs/olap_datasets.md](docs/olap_datasets.md) | OLAP-датасеты и правила безопасных метрик |
 
 Старые справочные md перенесены в [docs/archive](docs/archive). Они не являются текущим статусом проекта.
 
@@ -103,6 +104,16 @@ docker compose stop etl
 ```bash
 make logs-etl
 ```
+
+Запустить веб-конструктор отчетов:
+
+```bash
+make report-builder
+# открыть http://127.0.0.1:8088
+```
+
+Панель читает `DATABASE_URL` из `.env`/`.credentials.env` и строит SQL только
+через whitelist полей в `app/report_builder.py`.
 
 ## Перед новой загрузкой
 

@@ -1,4 +1,4 @@
-.PHONY: env up down logs logs-etl db-schema db-marts db-psql sync-iiko update-datalens update-today backfill-range auto-backfill scheduler
+.PHONY: env up down logs logs-etl db-schema db-marts db-psql sync-iiko update-datalens update-today backfill-range auto-backfill scheduler report-builder
 
 # Собирает ./.env: сливает переменные IIKO_* со всех соседних реп под parent(workdir),
 # плюс postgres/DATALENS из ./.credentials.env (см. .credentials.env.example).
@@ -47,3 +47,6 @@ auto-backfill:
 
 scheduler:
 	bash scripts/run_scheduler.sh
+
+report-builder:
+	python3 app/report_builder.py

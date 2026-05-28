@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>iiko OLAP Reports</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>iiko OLAP Reports</h1>
+        <p>Конструктор отчетов поверх локального PostgreSQL</p>
+      </div>
+      <nav class="tabs" aria-label="Views">
+        <button class="tab active" data-tab="builder">OLAP Builder</button>
+        <button class="tab" data-tab="segments">Customer Segments</button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="builder" class="panel active-panel">
+        <aside class="controls">
+          <label>
+            Факт
+            <select id="subject"></select>
+          </label>
+          <p id="subjectDescription" class="hint"></p>
+
+          <div class="field-block">
+            <div class="block-title">Группировки</div>
+            <div id="dimensions" class="check-grid"></div>
+          </div>
+
+          <div class="field-block">
+            <div class="block-title">Метрики</div>
+            <div id="metrics" class="check-grid"></div>
+          </div>
+
+          <div class="field-block">
+            <div class="block-title row-title">
+              Фильтры
+              <button id="addFilter" class="small-button" type="button">Добавить</button>
+            </div>
+            <div id="filters" class="filters"></div>
+          </div>
+
+          <div class="inline-controls">
+            <label>
+              Сортировка
+              <select id="orderBy"></select>
+            </label>
+            <label>
+              Направление
+              <select id="orderDir">
+                <option value="desc">По убыванию</option>
+                <option value="asc">По возрастанию</option>
+              </select>
+            </label>
+            <label>
+              Лимит
+              <input id="limit" type="number" min="1" max="1000" value="500">
+            </label>
+          </div>
+
+          <div class="actions">
+            <button id="runReport" type="button">Построить</button>
+            <button id="exportReport" class="secondary" type="button">CSV</button>
+          </div>
+        </aside>
+
+        <section class="results">
+          <div class="result-header">
+            <h2>Результат</h2>
+            <span id="status" class="status">Готово</span>
+          </div>
+          <div id="tableWrap" class="table-wrap"></div>
+        </section>
+      </section>
+
+      <section id="segments" class="panel">
+        <aside class="controls">
+          <label>
+            Тип условия
+            <select id="segmentMode">
+              <option value="product">Товар</option>
+              <option value="category">Категория</option>
+            </select>
+          </label>
+          <label>
+            Товар или категория содержит
+            <input id="segmentTerm" type="text" placeholder="например: ролл, сет, кофе">
+          </label>
+          <div class="inline-controls">
+            <label>
+              Lifetime условие
+              <select id="segmentLifetimeOp">
+                <option value="eq">=</option>
+                <option value="gte">&gt;=</option>
+                <option value="lte">&lt;=</option>
+                <option value="gt">&gt;</option>
+                <option value="lt">&lt;</option>
+              </select>
+            </label>
+            <label>
+              Покупок lifetime
+              <input id="segmentLifetimeCount" type="number" min="0" value="1">
+            </label>
+          </div>
+          <div class="inline-controls">
+            <label>
+              Период с
+              <input id="segmentDateFrom" type="date">
+            </label>
+            <label>
+              Период по
+              <input id="segmentDateTo" type="date">
+            </label>
+          </div>
+          <div class="inline-controls">
+            <label>
+              Заказов в периоде от
+              <input id="segmentMinOrders" type="number" min="1" value="5">
+            </label>
+            <label>
+              Лимит
+              <input id="segmentLimit" type="number" min="1" max="5000" value="500">
+            </label>
+          </div>
+          <div class="actions">
+            <button id="runSegment" type="button">Найти клиентов</button>
+            <button id="exportSegment" class="secondary" type="button">CSV</button>
+          </div>
+        </aside>
+
+        <section class="results">
+          <div class="result-header">
+            <h2>Клиенты</h2>
+            <span id="segmentStatus" class="status">Готово</span>
+          </div>
+          <div id="segmentTableWrap" class="table-wrap"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
